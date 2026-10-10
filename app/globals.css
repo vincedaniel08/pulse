@@ -1,79 +1,168 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Night-side-of-the-planet palette: near-black blues, one warm accent. */
+  --color-ink: #05070d;
+  --color-panel: #0c101b;
+  --color-line: rgb(255 255 255 / 0.09);
+  --color-pulse: #ff5c7a;
+  --color-pulse-soft: #ff93a7;
+
+  --animate-rise: rise 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-fade: fade 0.25s ease-out both;
+  --animate-drain: drain linear forwards;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+  /* Countdown bar on prompts: full width down to nothing. */
+  @keyframes drain {
+    to {
+      transform: scaleX(0);
+    }
   }
 }
 
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+  background: var(--color-ink);
+  color: #f4f4f5;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overscroll-behavior: none;
 }
 
-/* Live user dots on the map */
-.pulse-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 9999px;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-  padding: 0;
-  box-shadow: 0 0 0 rgba(255, 255, 255, 0.5);
-  animation: pulse-ring 2s ease-out infinite;
-  transition: transform 0.1s ease;
+/* Frosted surface used by every floating panel. */
+@utility glass {
+  background: rgb(12 16 27 / 0.78);
+  border: 1px solid var(--color-line);
+  box-shadow:
+    0 24px 60px -20px rgb(0 0 0 / 0.7),
+    inset 0 1px 0 rgb(255 255 255 / 0.05);
+  backdrop-filter: blur(20px) saturate(1.5);
 }
 
-.pulse-dot:hover {
-  transform: scale(1.3);
+:focus-visible {
+  outline: 2px solid var(--color-pulse-soft);
+  outline-offset: 2px;
 }
 
-/* The user's own "you are here" pin — small, sized like the dots. */
-.pulse-me {
+/* ---- Map markers ---------------------------------------------------------
+   Markers are plain DOM nodes owned by Mapbox, so they are styled here
+   rather than with utilities. The button is a 40px touch target; the visible
+   dot and its ring are pseudo-elements coloured by --c. */
+
+.dot {
   position: relative;
-  font-size: 18px;
-  line-height: 1;
-  cursor: default;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  animation: dot-in 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 
-.pulse-me-label {
+.dot::before,
+.dot::after {
+  content: "";
   position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  margin-bottom: 1px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #ffffff;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 0 5px;
+  inset: 0;
+  margin: auto;
   border-radius: 9999px;
-  white-space: nowrap;
 }
 
-@keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+.dot::before {
+  width: 12px;
+  height: 12px;
+  background: var(--c);
+  box-shadow:
+    0 0 0 2px rgb(5 7 13 / 0.9),
+    0 0 14px 2px var(--c);
+  transition: transform 0.15s ease;
+}
+
+.dot::after {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--c);
+  animation: dot-ring 2.4s ease-out infinite;
+}
+
+.dot:hover::before,
+.dot:focus-visible::before {
+  transform: scale(1.35);
+}
+
+/* In a conversation: still there, visibly not available. */
+.dot[data-busy="true"] {
+  cursor: default;
+  opacity: 0.4;
+}
+.dot[data-busy="true"]::after {
+  animation: none;
+  opacity: 0;
+}
+
+.dot-me {
+  cursor: default;
+  --c: #ffffff;
+}
+.dot-me span {
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  transform: translateX(-50%);
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.95);
+  color: #05070d;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+@keyframes dot-in {
+  from {
+    opacity: 0;
+    transform: scale(0);
   }
-  70% {
-    box-shadow: 0 0 0 8px rgba(255, 255, 255, 0);
+}
+
+@keyframes dot-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
   }
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  to {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+/* Keep Mapbox's required attribution, but out of the way. */
+.mapboxgl-ctrl-attrib,
+.mapboxgl-ctrl-logo {
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

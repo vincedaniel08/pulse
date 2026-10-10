@@ -22,10 +22,15 @@ export async function GET(request: NextRequest) {
   const signalCutoff = new Date(now - SIGNAL_TTL_MS);
 
   // 1) Heartbeat — refresh lastSeen for the caller.
-  await prisma.presence.updateMany({
+  const beat = await prisma.presence.updateMany({
     where: { id },
     data: { lastSeen: new Date(now) },
   });
+  if (beat.count === 0) {
+    // No row: never joined, or reaped while the tab was asleep (browsers
+    // throttle timers in background tabs). Tell the client to join again.
+    return Response.json({ error: "session expired" }, { status: 410 });
+  }
 
   // 2) Reap stale presence rows and orphaned signals (independent deletes —
   // no atomicity needed, and avoids transactions over a PgBouncer pooler).

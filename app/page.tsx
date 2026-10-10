@@ -48,6 +48,8 @@ export default function Home() {
     _setVideo(v);
   };
 
+  // Real coordinates stay in memory only, so we can rejoin if the session expires.
+  const rawLocation = useRef<{ lat: number; lng: number } | null>(null);
   const peerRef = useRef<PeerSession | null>(null);
   const msgId = useRef(0);
   const requestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -279,10 +281,18 @@ export default function Home() {
       try {
         const data = await poll(sessionId);
         if (!active) return;
+        if (!data) {
+          const raw = rawLocation.current;
+          if (raw) setMyLocation(await join(sessionId, raw.lat, raw.lng));
+          return;
+        }
         setPeers(data.peers);
         for (const s of data.signals) processSignalRef.current(s);
-      } catch {}
-      if (active) timer = setTimeout(tick, POLL_INTERVAL_MS);
+      } catch {
+        // Network blip: keep polling.
+      } finally {
+        if (active) timer = setTimeout(tick, POLL_INTERVAL_MS);
+      }
     };
     tick();
 
@@ -304,8 +314,9 @@ export default function Home() {
   }, [sessionId, phase]);
 
   async function handleReady(lat: number, lng: number) {
-    setMyLocation({ lat, lng });
-    await join(sessionId, lat, lng);
+    rawLocation.current = { lat, lng };
+    // Pin "me" where everyone else sees the dot, not at the real coordinates.
+    setMyLocation(await join(sessionId, lat, lng));
     setPhase("live");
   }
 

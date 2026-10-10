@@ -43,5 +43,7 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return Response.json({ ok: true });
+  // Hand back the offset position so the client can show the user the same
+  // dot everyone else sees.
+  return Response.json({ ok: true, lat: offset.lat, lng: offset.lng });
 }

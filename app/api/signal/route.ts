@@ -16,89 +16,164 @@ const VALID_TYPES: SignalType[] = [
   "end",
 ];
 
-const MAX_PAYLOAD = 64 * 1024; // SDP/ICE are small; cap to be safe.
+// Only the WebRTC handshake carries a payload.
+const HANDSHAKE_TYPES: SignalType[] = ["offer", "answer", "ice"];
+
+const MAX_PAYLOAD = 16 * 1024; // a full SDP with video is ~5 KB
+const MAX_QUEUED = 100; // undelivered signals one sender may park in one mailbox
+const REQUEST_COOLDOWN_MS = 2_000;
+
+function reject(error: string, status: number) {
+  return Response.json({ error }, { status });
+}
 
 // POST /api/signal — body { toId, type, payload? }
+// Drops one message into the recipient's mailbox, but only if it is a legal
+// move in the connection flow:
+//
+//   request  A → B   A is free. Remembered as A.requestedId = B.
+//   accept   B → A   only while A.requestedId = B. Pairs them (peerId).
+//   decline  B → A   only while A.requestedId = B.
+//   offer / answer / ice   only between a connected pair.
+//   end      cancels my pending request, or ends my connection.
+//
 // The sender is whoever the token belongs to; it is never read from the body.
-// Drops one message into the recipient's mailbox. Also manages the `busy`
-// flag so a user can only be in one connection at a time.
 export async function POST(request: NextRequest) {
   const me = await authenticate(request);
   if (!me) return unauthorized();
-  const fromId = me.id;
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "invalid body" }, { status: 400 });
+    return reject("invalid body", 400);
   }
 
   const { toId, type, payload } = (body ?? {}) as Record<string, unknown>;
 
-  if (!isSessionId(toId) || toId === fromId) {
-    return Response.json({ error: "invalid recipient" }, { status: 400 });
+  if (!isSessionId(toId) || toId === me.id) {
+    return reject("invalid recipient", 400);
   }
   if (typeof type !== "string" || !VALID_TYPES.includes(type as SignalType)) {
-    return Response.json({ error: "invalid type" }, { status: 400 });
+    return reject("invalid type", 400);
   }
-  if (
-    payload !== undefined &&
-    payload !== null &&
-    (typeof payload !== "string" || payload.length > MAX_PAYLOAD)
-  ) {
-    return Response.json({ error: "invalid payload" }, { status: 400 });
-  }
-
   const signalType = type as SignalType;
-  const payloadStr = typeof payload === "string" ? payload : null;
 
-  // Enforce "one active connection at a time": if the target is already busy,
-  // auto-decline the request instead of delivering it.
-  if (signalType === "request") {
-    const target = await prisma.presence.findUnique({
-      where: { id: toId },
-      select: { busy: true },
-    });
-    if (!target) {
-      // Target went offline — tell the initiator it was declined.
-      await sendDecline(toId, fromId);
-      return Response.json({ ok: true, autoDeclined: true });
+  let payloadStr: string | null = null;
+  if (HANDSHAKE_TYPES.includes(signalType)) {
+    if (
+      typeof payload !== "string" ||
+      payload.length > MAX_PAYLOAD ||
+      !isJsonObject(payload)
+    ) {
+      return reject("invalid payload", 400);
     }
-    if (target.busy) {
-      await sendDecline(toId, fromId);
-      return Response.json({ ok: true, autoDeclined: true });
+    payloadStr = payload;
+  } else if (payload !== undefined && payload !== null) {
+    return reject("unexpected payload", 400);
+  }
+
+  const target = await prisma.presence.findUnique({
+    where: { id: toId },
+    select: { peerId: true, requestedId: true },
+  });
+
+  switch (signalType) {
+    case "request": {
+      if (me.peerId) return reject("already connected", 409);
+      if (
+        me.requestedAt &&
+        Date.now() - me.requestedAt.getTime() < REQUEST_COOLDOWN_MS
+      ) {
+        return reject("too many requests", 429);
+      }
+      // "One active connection at a time": if the target is gone or already
+      // talking to someone, answer for them instead of interrupting.
+      if (!target || target.peerId) {
+        await prisma.signal.create({
+          data: { fromId: toId, toId: me.id, type: "decline" },
+        });
+        return Response.json({ ok: true, autoDeclined: true });
+      }
+      await prisma.presence.updateMany({
+        where: { id: me.id },
+        data: { requestedId: toId, requestedAt: new Date() },
+      });
+      break;
+    }
+
+    case "accept": {
+      if (me.peerId) return reject("already connected", 409);
+      // Claim the requester in one conditional update, so two people
+      // accepting at the same moment cannot both win.
+      const claimed = await prisma.presence.updateMany({
+        where: { id: toId, requestedId: me.id, peerId: null },
+        data: { peerId: me.id, requestedId: null },
+      });
+      if (claimed.count === 0) return reject("no pending request", 409);
+      await prisma.presence.updateMany({
+        where: { id: me.id },
+        data: { peerId: toId, requestedId: null },
+      });
+      break;
+    }
+
+    case "decline": {
+      const cleared = await prisma.presence.updateMany({
+        where: { id: toId, requestedId: me.id },
+        data: { requestedId: null },
+      });
+      if (cleared.count === 0) return reject("no pending request", 409);
+      break;
+    }
+
+    case "end": {
+      if (me.peerId === toId) {
+        await prisma.presence.updateMany({
+          where: { id: me.id },
+          data: { peerId: null },
+        });
+        // Free the other side only if they are still paired with us.
+        await prisma.presence.updateMany({
+          where: { id: toId, peerId: me.id },
+          data: { peerId: null },
+        });
+      } else if (me.requestedId === toId) {
+        await prisma.presence.updateMany({
+          where: { id: me.id },
+          data: { requestedId: null },
+        });
+      } else {
+        return reject("nothing to end", 409);
+      }
+      break;
+    }
+
+    default: {
+      // offer / answer / ice
+      if (me.peerId !== toId) return reject("not connected", 403);
+      const queued = await prisma.signal.count({
+        where: { toId, fromId: me.id },
+      });
+      if (queued >= MAX_QUEUED) return reject("mailbox full", 429);
     }
   }
 
-  // Busy transitions:
-  // - accept: the connection is now active → mark BOTH peers busy.
-  // - end: the connection is over → free both peers.
-  // A decline happens before anyone is marked busy, so it must not touch the
-  // flag: a user who is mid-chat auto-declines third parties and would
-  // otherwise show up as free again.
-  if (signalType === "accept") {
-    await prisma.presence.updateMany({
-      where: { id: { in: [fromId, toId] } },
-      data: { busy: true },
-    });
-  } else if (signalType === "end") {
-    await prisma.presence.updateMany({
-      where: { id: { in: [fromId, toId] } },
-      data: { busy: false },
-    });
-  }
+  // Nobody to deliver to (they left): the state above is already cleaned up.
+  if (!target) return Response.json({ ok: true });
 
   await prisma.signal.create({
-    data: { fromId, toId, type: signalType, payload: payloadStr },
+    data: { fromId: me.id, toId, type: signalType, payload: payloadStr },
   });
 
   return Response.json({ ok: true });
 }
 
-// Helper: deliver an auto-decline from `target` back to `initiator`.
-async function sendDecline(targetId: string, initiatorId: string) {
-  await prisma.signal.create({
-    data: { fromId: targetId, toId: initiatorId, type: "decline", payload: null },
-  });
+function isJsonObject(text: string): boolean {
+  try {
+    const value: unknown = JSON.parse(text);
+    return typeof value === "object" && value !== null;
+  } catch {
+    return false;
+  }
 }

@@ -61,9 +61,9 @@ export default function Home() {
   const requestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function signal(toId: string, type: SignalType, payload?: string) {
-    if (sessionRef.current) {
-      void sendSignal(sessionRef.current, toId, type, payload);
-    }
+    const s = sessionRef.current;
+    if (!s) return Promise.resolve(false);
+    return sendSignal(s, toId, type, payload).catch(() => false);
   }
 
   // Start (or restart) a session from the real coordinates. The "me" pin uses
@@ -99,7 +99,7 @@ export default function Home() {
   function startPeer(peerId: string, initiator: boolean) {
     const ps = new PeerSession(initiator, {
       onSignal: (type: DescType, payload: string) => {
-        signal(peerId, type, payload);
+        void signal(peerId, type, payload);
       },
       onChat: (text) => addMessage(false, text),
       onControl: (ctrl) => handleControl(ctrl),
@@ -154,13 +154,18 @@ export default function Home() {
   function requestConnection(peerId: string) {
     if (connRef.current.kind !== "idle") return;
     setConn({ kind: "requesting", peerId });
-    signal(peerId, "request");
+    void signal(peerId, "request").then((ok) => {
+      const c = connRef.current;
+      if (!ok && c.kind === "requesting" && c.peerId === peerId) {
+        teardown("Couldn't send the request. Try again in a moment.");
+      }
+    });
     requestTimer.current = setTimeout(() => {
       if (
         connRef.current.kind === "requesting" &&
         connRef.current.peerId === peerId
       ) {
-        signal(peerId, "end");
+        void signal(peerId, "end");
         teardown("No answer.");
       }
     }, REQUEST_TIMEOUT_MS);
@@ -168,7 +173,7 @@ export default function Home() {
 
   function cancelRequest() {
     if (connRef.current.kind === "requesting") {
-      signal(connRef.current.peerId, "end");
+      void signal(connRef.current.peerId, "end");
     }
     teardown();
   }
@@ -177,20 +182,20 @@ export default function Home() {
     if (connRef.current.kind !== "incoming") return;
     const peerId = connRef.current.peerId;
     startPeer(peerId, false);
-    signal(peerId, "accept");
+    void signal(peerId, "accept");
     setConn({ kind: "connecting", peerId });
   }
 
   function declineIncoming() {
     if (connRef.current.kind !== "incoming") return;
-    signal(connRef.current.peerId, "decline");
+    void signal(connRef.current.peerId, "decline");
     setConn({ kind: "idle" });
   }
 
   function endConnection() {
     const c = connRef.current;
     if (c.kind === "connecting" || c.kind === "connected") {
-      signal(c.peerId, "end");
+      void signal(c.peerId, "end");
     }
     teardown();
   }
@@ -237,7 +242,7 @@ export default function Home() {
         if (connRef.current.kind === "idle") {
           setConn({ kind: "incoming", peerId: sig.fromId });
         } else {
-          signal(sig.fromId, "decline");
+          void signal(sig.fromId, "decline");
         }
         break;
       }
@@ -303,7 +308,7 @@ export default function Home() {
     // Once their dot is gone, stop waiting for them.
     const c = connRef.current;
     if (c.kind !== "idle" && !data.peers.some((p) => p.id === c.peerId)) {
-      signal(c.peerId, "end"); // clears our busy flag
+      void signal(c.peerId, "end"); // clears our busy flag
       if (c.kind === "incoming") setConn({ kind: "idle" });
       else teardown("Stranger disconnected.");
     }

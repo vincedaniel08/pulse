@@ -14,10 +14,15 @@ datasource db {
 model Presence {
   id        String @id @default(uuid()) // public id, shown to every peer
   tokenHash String // sha256 of the secret session token; the token itself is never stored
-  lat      Float // ALREADY privacy-offset coords (raw is never stored)
-  lng      Float
-  busy     Boolean  @default(false) // true while in an active connection
-  lastSeen DateTime
+  lat       Float // ALREADY privacy-offset coords (raw is never stored)
+  lng       Float
+  lastSeen  DateTime
+
+  // Connection state. The server only relays a signal if these say the two
+  // sessions are actually talking to each other.
+  requestedId String? // the peer we asked to connect to and are waiting on
+  requestedAt DateTime? // when we last asked, for the request cooldown
+  peerId      String? // the peer we are connected to; non-null means "busy"
 
   @@index([lastSeen])
 }

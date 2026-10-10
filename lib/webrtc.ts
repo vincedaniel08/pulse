@@ -3,7 +3,8 @@ export type PeerControl =
   | "video-request"
   | "video-accept"
   | "video-decline"
-  | "video-end";
+  | "video-end"
+  | "typing";
 
 interface PeerCallbacks {
   onSignal: (type: DescType, payload: string) => void;
@@ -22,6 +23,7 @@ const CONTROLS: PeerControl[] = [
   "video-accept",
   "video-decline",
   "video-end",
+  "typing",
 ];
 
 const ICE_CONFIG: RTCConfiguration = {

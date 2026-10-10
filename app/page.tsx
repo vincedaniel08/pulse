@@ -9,6 +9,7 @@ import VideoPanel from "./components/VideoPanel";
 import { join, leave, poll, sendSignal, type Session } from "@/lib/api";
 import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
 import { POLL_INTERVAL_MS } from "@/lib/presence";
+import { dotColor } from "@/lib/color";
 import {
   type PeerDot,
   type PollResponse,
@@ -26,6 +27,8 @@ type Conn =
 type VideoState = "none" | "requesting" | "incoming" | "active";
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const TYPING_SEND_EVERY_MS = 2_000; // how often we tell the peer we're typing
+const TYPING_SHOWN_MS = 3_500; // how long one "typing" keeps the dots up
 
 export default function Home() {
   // Null until the server has issued us a session (id + secret token).
@@ -58,6 +61,11 @@ export default function Home() {
   const rawLocation = useRef<{ lat: number; lng: number } | null>(null);
   const peerRef = useRef<PeerSession | null>(null);
   const msgId = useRef(0);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [peerTyping, setPeerTyping] = useState(false);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSent = useRef(0);
   const requestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function signal(toId: string, type: SignalType, payload?: string) {
@@ -76,12 +84,22 @@ export default function Home() {
   }
 
   function showNotice(text: string) {
+    // Restart the clock, so an older toast can't dismiss a newer one early.
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
     setNotice(text);
-    window.setTimeout(() => setNotice(null), 3500);
+    noticeTimer.current = setTimeout(() => setNotice(null), 4000);
   }
 
   function addMessage(mine: boolean, text: string) {
     setMessages((prev) => [...prev, { id: msgId.current++, mine, text }]);
+    if (!mine) setPeerTyping(false);
+  }
+
+  function sendTyping() {
+    const now = Date.now();
+    if (now - lastTypingSent.current < TYPING_SEND_EVERY_MS) return;
+    lastTypingSent.current = now;
+    peerRef.current?.sendControl("typing");
   }
 
   function teardown(message?: string) {
@@ -92,6 +110,7 @@ export default function Home() {
     setRemoteStream(null);
     setVideo("none");
     setMessages([]);
+    setPeerTyping(false);
     setConn({ kind: "idle" });
     if (message) showNotice(message);
   }
@@ -119,6 +138,11 @@ export default function Home() {
   function handleControl(ctrl: PeerControl) {
     const ps = peerRef.current;
     switch (ctrl) {
+      case "typing":
+        setPeerTyping(true);
+        if (typingTimer.current) clearTimeout(typingTimer.current);
+        typingTimer.current = setTimeout(() => setPeerTyping(false), TYPING_SHOWN_MS);
+        break;
       case "video-request":
         if (videoRef.current === "none") setVideo("incoming");
         break;
@@ -360,33 +384,64 @@ export default function Home() {
     await enter(lat, lng);
   }
 
-  if (!session) {
-    return <EntryGate onReady={handleReady} />;
-  }
-
   const inChat = conn.kind === "connecting" || conn.kind === "connected";
+  const peerColor = conn.kind === "idle" ? "#fff" : dotColor(conn.peerId);
+  const pill =
+    "glass animate-rise absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full text-sm whitespace-nowrap";
 
   return (
-    <main className="fixed inset-0 overflow-hidden">
+    <main className="fixed inset-0 overflow-hidden bg-ink">
+      {/* The globe is always there; before joining it just spins behind the gate. */}
       <WorldMap
         peers={peers}
         me={myLocation}
+        linkedPeerId={conn.kind === "idle" || conn.kind === "incoming" ? null : conn.peerId}
         onPeerClick={requestConnection}
         canConnect={conn.kind === "idle"}
       />
 
+      {!session && <EntryGate onReady={handleReady} />}
+
+      {session && !inChat && (
+        <header className="glass animate-fade absolute top-4 left-4 z-10 flex items-center gap-3 rounded-full py-2 pr-4 pl-3.5">
+          <span className="relative flex size-2.5">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-pulse opacity-70" />
+            <span className="relative inline-flex size-2.5 rounded-full bg-pulse" />
+          </span>
+          <span className="text-sm font-semibold tracking-wide">Pulse</span>
+          <span className="h-3.5 w-px bg-line" />
+          <span className="text-sm text-zinc-400" aria-live="polite">
+            {peers.length === 0
+              ? "Just you so far"
+              : `${peers.length} ${peers.length === 1 ? "stranger" : "strangers"} online`}
+          </span>
+        </header>
+      )}
+
+      {session && conn.kind === "idle" && (
+        <p className="animate-fade pointer-events-none absolute inset-x-0 bottom-10 z-10 px-6 text-center text-sm text-zinc-400 [text-shadow:0_1px_12px_#000]">
+          {peers.length === 0
+            ? "No one else is here yet. Stay a while, dots appear the moment someone joins."
+            : "Tap a glowing dot to ask a stranger to talk."}
+        </p>
+      )}
+
       {notice && (
-        <div className="absolute left-1/2 top-20 z-30 -translate-x-1/2 rounded-full bg-zinc-800/90 px-4 py-2 text-sm text-zinc-100 shadow-lg backdrop-blur">
+        <div role="status" className={`${pill} top-20 px-4 py-2.5`}>
           {notice}
         </div>
       )}
 
       {conn.kind === "requesting" && (
-        <div className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full bg-zinc-800/90 px-4 py-2 text-sm text-zinc-100 shadow-lg backdrop-blur">
-          <span>Requesting connection…</span>
+        <div role="status" className={`${pill} bottom-10 py-2 pr-2 pl-4`}>
+          <span
+            className="size-2.5 animate-pulse rounded-full"
+            style={{ background: peerColor }}
+          />
+          Asking a stranger to talk…
           <button
             onClick={cancelRequest}
-            className="rounded-full bg-zinc-700 px-3 py-1 text-xs hover:bg-zinc-600"
+            className="rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium transition hover:bg-white/20"
           >
             Cancel
           </button>
@@ -395,9 +450,12 @@ export default function Home() {
 
       {conn.kind === "incoming" && (
         <ConnectionPrompt
-          title="A stranger wants to connect"
-          acceptLabel="Accept"
-          declineLabel="Decline"
+          title="A stranger wants to talk"
+          subtitle="Text first. Video only if you both agree."
+          accent={peerColor}
+          acceptLabel="Say hi"
+          declineLabel="Not now"
+          timeoutMs={REQUEST_TIMEOUT_MS}
           onAccept={acceptIncoming}
           onDecline={declineIncoming}
         />
@@ -407,28 +465,33 @@ export default function Home() {
         <ChatPanel
           messages={messages}
           connected={conn.kind === "connected"}
+          peerTyping={peerTyping}
+          accent={peerColor}
           videoBusy={video !== "none"}
           onSend={(text) => {
             peerRef.current?.sendChat(text);
             addMessage(true, text);
           }}
+          onTyping={sendTyping}
           onStartVideo={startVideoRequest}
           onEnd={endConnection}
         />
       )}
 
       {video === "requesting" && (
-        <div className="absolute bottom-24 left-1/2 z-30 -translate-x-1/2 rounded-full bg-zinc-800/90 px-4 py-2 text-sm text-zinc-100 shadow-lg backdrop-blur">
-          Waiting for stranger to accept video…
+        <div role="status" className={`${pill} top-20 px-4 py-2.5`}>
+          <span className="size-4 animate-spin rounded-full border-2 border-white/25 border-t-white" />
+          Waiting for them to accept video…
         </div>
       )}
 
       {video === "incoming" && (
         <ConnectionPrompt
-          title="Start video call?"
-          subtitle="The stranger wants to turn on video."
-          acceptLabel="Accept"
-          declineLabel="Decline"
+          title="Turn on video?"
+          subtitle="The stranger would like to see and hear you."
+          accent={peerColor}
+          acceptLabel="Start video"
+          declineLabel="Keep typing"
           onAccept={acceptVideo}
           onDecline={declineVideo}
         />

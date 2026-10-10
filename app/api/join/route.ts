@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { applyPrivacyOffset, isValidLatLng } from "@/lib/geo";
 import { hashToken, newToken } from "@/lib/auth";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,12 @@ export const dynamic = "force-dynamic";
 // applies the 1–3 km privacy offset and stores only the offset position.
 // Raw coordinates are never stored.
 export async function POST(request: NextRequest) {
+  // Joining is the one unauthenticated write, so it is the easy way to flood
+  // the map with fake dots. The IP is only used as a counter key in memory.
+  if (!rateLimit(`join:${clientIp(request)}`, 10, 60_000)) {
+    return Response.json({ error: "too many requests" }, { status: 429 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();

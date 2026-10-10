@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LockIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from "./icons";
+import {
+  EyeIcon,
+  LockIcon,
+  MicIcon,
+  MicOffIcon,
+  VideoIcon,
+  VideoOffIcon,
+} from "./icons";
 
 export default function VideoPanel({
   localStream,
@@ -16,6 +23,8 @@ export default function VideoPanel({
   const remoteRef = useRef<HTMLVideoElement>(null);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  // A stranger's camera starts blurred. You decide when (and whether) to look.
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     if (localRef.current && localRef.current.srcObject !== localStream) {
@@ -52,8 +61,22 @@ export default function VideoPanel({
         ref={remoteRef}
         autoPlay
         playsInline
-        className="h-full w-full object-cover"
+        className={`h-full w-full object-cover transition duration-500 ${revealed ? "" : "scale-110 blur-3xl"}`}
       />
+      {remoteStream && !revealed && (
+        <div className="animate-fade absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <p className="max-w-xs text-sm text-zinc-200">
+            Their video is blurred until you choose to see it. You can blur it
+            again at any time.
+          </p>
+          <button
+            onClick={() => setRevealed(true)}
+            className="glass flex h-12 items-center gap-2 rounded-full px-6 text-sm font-semibold transition hover:brightness-125 active:scale-95"
+          >
+            <EyeIcon /> Show video
+          </button>
+        </div>
+      )}
       {!remoteStream && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-zinc-400">
           <span className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
@@ -91,6 +114,14 @@ export default function VideoPanel({
         >
           {camOn ? <VideoIcon /> : <VideoOffIcon />}
         </button>
+        {revealed && (
+          <button
+            onClick={() => setRevealed(false)}
+            className="h-13 rounded-full bg-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/25 active:scale-95"
+          >
+            Blur
+          </button>
+        )}
         <button
           onClick={onEnd}
           className="h-13 rounded-full bg-pulse px-7 text-[15px] font-semibold text-white transition hover:brightness-110 active:scale-95"

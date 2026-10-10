@@ -3,6 +3,7 @@
 - Live: https://pulse-vincedaniel.vercel.app
 - Repo: https://github.com/vincedaniel08/pulse
 - Commits are prefixed `[HOTFIX]` (a fix) or `[FEAT]` (new behaviour), one concern each.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) explains the whole system end to end.
 - `npm run smoke` runs an end-to-end check of the API (13 cases) against `localhost:3000`, or against any deploy with `BASE_URL=...`.
 
 ## Phase 1 — Make it run
@@ -26,13 +27,14 @@ How I looked: read the request path end to end (gate → join → poll → signa
 
 Idea: the product is "a living globe", so the globe should be the interface, not a background behind modals.
 
-- **Globe first.** Mapbox globe projection with atmosphere and stars, mounted from first paint. It drifts slowly behind the entry card, then flies to your dot when you join.
+- **Globe first.** Mapbox globe projection, mounted from first paint. It drifts slowly next to the entry panel, then flies to your dot when you join.
 - **The connection is drawn.** A great-circle arc links you to the person you are asking or talking to, and the camera frames both ends. It makes "talking to someone 8,000 km away" visible.
-- **Entry card earns the permission prompt.** Three short promises (fuzzy location, peer-to-peer, nothing kept) before the browser asks for location, and a useful message if it is denied.
+- **Entry panel earns the permission prompt.** A side panel (bottom sheet on phones) states the three rules (fuzzy location, peer-to-peer, nothing kept) before the browser asks for location, and gives a useful message if it is denied.
 - **Nothing blocks the map.** Incoming requests are a floating card with a 30 s countdown bar (same timeout the requester has). Pending request is a pill with Cancel.
 - **Chat** floats on desktop and is full screen on phones: grouped bubbles, typing indicator (sent over the data channel, so still nothing on the server), autofocus, safe-area padding.
 - **Video**: mute and camera toggles, mirrored self view, "direct call, not recorded" label.
-- **System**: one accent colour on near-black blues, one `glass` surface, Geist (it was loaded but overridden by Arial), 40 px touch targets on dots, focus rings, `aria-live` regions, `prefers-reduced-motion` respected.
+- **System**: flat neutral surfaces with hairline borders, white primary buttons, and one accent kept for the brand dot, the arc and destructive actions. Geist (it was loaded but overridden by Arial), 40 px touch targets on dots, focus rings, `aria-live` regions, `prefers-reduced-motion` respected.
+- I first built this with frosted glass, glows and pill buttons, then pulled it back. It looked like a template and the effects competed with the map, which is the actual content.
 - Each stranger gets a stable colour from their id, reused for their dot, prompt and chat avatar.
 
 Trade-off: dots are DOM markers, which is fine for hundreds. Past a few thousand I would move to a clustered GeoJSON layer (marked in `WorldMap.tsx`).
@@ -63,7 +65,7 @@ Known and not fixed:
 
 **What:** dots stop being anonymous pixels. Tapping one opens a card instead of firing a request blind.
 
-- **Mood.** Pick one of six presets on the way in ("Can't sleep", "Talk music"…). It rides on your dot as a small badge and headlines your card.
+- **Mood.** Pick one of six presets on the way in ("Can't sleep", "Talk music"…). It headlines your card and shows as a tooltip on your dot.
 - **Context.** The card shows roughly how far away the person is and what part of the day it is for them ("~8,400 km away · Middle of the night there").
 - **Wave.** A hello that asks for nothing back. Their map ripples on your dot and they can wave back in one tap.
 - **Hide.** Remove someone's dot and drop their requests and waves for the rest of your session. On the card and inside a chat.
@@ -84,8 +86,14 @@ With more time:
 - Match by mood: filter the globe to people in the same mood, or "surprise me".
 - Report alongside hide, with a short-lived server-side strike count per session.
 - TURN fallback so strict networks can connect.
-- Day/night terminator on the globe, and a subtle sound for waves.
+- Day/night terminator on the globe.
 - Component tests for the client state machine; today only the API has an automated check.
+
+## Testing
+
+- `npm run smoke` passes 13/13 against the live deploy.
+- Checked in two browser tabs on the live deploy: both dots appear, card and arc on tap, request and accept, chat in both directions, video request and accept.
+- The video stream itself I could only take as far as the camera permission in my test setup; with no camera the app falls back to "Camera unavailable" and stays in chat.
 
 ## Assumptions
 

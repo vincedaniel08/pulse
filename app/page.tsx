@@ -440,7 +440,7 @@ export default function Home() {
     "surface animate-rise absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg text-sm whitespace-nowrap";
 
   return (
-    <main className="fixed inset-0 overflow-hidden bg-ink">
+    <main className="fixed inset-x-0 top-0 h-dvh overflow-hidden bg-ink">
       {/* The globe is always there; before joining it just spins behind the gate. */}
       <WorldMap
         peers={visiblePeers}

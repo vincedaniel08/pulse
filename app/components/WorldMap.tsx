@@ -5,6 +5,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import type { GeoJSONSource, Map as MapboxMap, Marker } from "mapbox-gl";
 import type { PeerDot } from "@/lib/types";
 import { dotColor } from "@/lib/color";
+import { VIBES } from "@/lib/vibes";
 import { greatCircle } from "@/lib/geo";
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -22,6 +23,7 @@ export default function WorldMap({
   peers,
   me,
   linkedPeerId,
+  waveFrom,
   onPeerClick,
   canConnect,
 }: {
@@ -30,6 +32,8 @@ export default function WorldMap({
   me: { lat: number; lng: number } | null;
   // Draws an arc from me to this peer (pending request or live connection).
   linkedPeerId: string | null;
+  // Latest wave we received; `at` changes each time so repeat waves replay.
+  waveFrom: { id: string; at: number } | null;
   onPeerClick: (id: string) => void;
   canConnect: boolean;
 }) {
@@ -161,11 +165,15 @@ export default function WorldMap({
         const el = document.createElement("button");
         el.className = "dot";
         el.style.setProperty("--c", dotColor(peer.id));
+        if (peer.vibe) {
+          const badge = document.createElement("span");
+          badge.className = "dot-vibe";
+          badge.textContent = VIBES[peer.vibe].emoji;
+          el.append(badge);
+        }
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          if (canConnectRef.current && el.dataset.busy !== "true") {
-            onPeerClickRef.current(peer.id);
-          }
+          if (canConnectRef.current) onPeerClickRef.current(peer.id);
         });
         marker = new mapboxgl.Marker({ element: el })
           .setLngLat([peer.lng, peer.lat])
@@ -176,7 +184,7 @@ export default function WorldMap({
       el.dataset.busy = String(peer.busy);
       el.setAttribute(
         "aria-label",
-        peer.busy ? "Stranger, in a conversation" : "Stranger, tap to connect",
+        peer.busy ? "Stranger, in a conversation" : "Stranger, tap for details",
       );
     }
 
@@ -188,6 +196,16 @@ export default function WorldMap({
       }
     }
   }, [peers, ready]);
+
+  // Ripple the dot that just waved at us.
+  useEffect(() => {
+    if (!waveFrom) return;
+    const el = markersRef.current.get(waveFrom.id)?.getElement();
+    if (!el) return;
+    el.dataset.waving = "true";
+    const timer = setTimeout(() => delete el.dataset.waving, 2800);
+    return () => clearTimeout(timer);
+  }, [waveFrom]);
 
   // The arc between me and whoever I'm reaching for / talking to.
   const linked = peers.find((p) => p.id === linkedPeerId);

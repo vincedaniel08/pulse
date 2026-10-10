@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { STALE_MS, SIGNAL_TTL_MS } from "@/lib/presence";
 import { authenticate } from "@/lib/auth";
+import { isVibe } from "@/lib/vibes";
 import type { PollResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       id: { not: id },
       lastSeen: { gte: staleCutoff },
     },
-    select: { id: true, lat: true, lng: true, peerId: true },
+    select: { id: true, lat: true, lng: true, peerId: true, vibe: true },
   });
 
   // 4) Drain this user's mailbox: read, then delete exactly what we read so a
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest) {
       lat: p.lat,
       lng: p.lng,
       busy: p.peerId !== null,
+      vibe: isVibe(p.vibe) ? p.vibe : null,
     })),
     signals: inbox.map((s) => ({
       id: s.id,

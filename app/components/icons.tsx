@@ -61,6 +61,20 @@ export const CloseIcon = () => (
   </Icon>
 );
 
+export const BlockIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="m6 6 12 12" />
+  </Icon>
+);
+
+export const EyeIcon = () => (
+  <Icon>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+    <circle cx="12" cy="12" r="2.8" />
+  </Icon>
+);
+
 export const LockIcon = () => (
   <Icon>
     <rect x="5" y="11" width="14" height="9" rx="2.5" />

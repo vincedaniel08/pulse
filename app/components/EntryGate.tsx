@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { VIBES, type Vibe } from "@/lib/vibes";
 import { GhostIcon, LockIcon, PinIcon } from "./icons";
 
 const PROMISES = [
@@ -24,10 +25,11 @@ const PROMISES = [
 export default function EntryGate({
   onReady,
 }: {
-  onReady: (lat: number, lng: number) => Promise<void>;
+  onReady: (lat: number, lng: number, vibe: Vibe | null) => Promise<void>;
 }) {
   const [status, setStatus] = useState<"idle" | "locating" | "error">("idle");
   const [error, setError] = useState("");
+  const [vibe, setVibe] = useState<Vibe | null>(null);
 
   function fail(message: string) {
     setStatus("error");
@@ -42,7 +44,7 @@ export default function EntryGate({
     setStatus("locating");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        onReady(pos.coords.latitude, pos.coords.longitude).catch(() =>
+        onReady(pos.coords.latitude, pos.coords.longitude, vibe).catch(() =>
           fail("Couldn't reach Pulse. Please try again."),
         );
       },
@@ -94,10 +96,33 @@ export default function EntryGate({
           ))}
         </ul>
 
+        <fieldset className="mt-7">
+          <legend className="text-xs font-medium tracking-wide text-zinc-500 uppercase">
+            What are you up for? <span className="normal-case">(optional)</span>
+          </legend>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {(Object.keys(VIBES) as Vibe[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={vibe === key}
+                onClick={() => setVibe(vibe === key ? null : key)}
+                className={`rounded-full px-3 py-1.5 text-sm transition ${
+                  vibe === key
+                    ? "bg-white text-ink"
+                    : "bg-white/[0.07] text-zinc-300 hover:bg-white/[0.12]"
+                }`}
+              >
+                {VIBES[key].emoji} {VIBES[key].label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
         <button
           onClick={enter}
           disabled={locating}
-          className="mt-8 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-pulse text-[15px] font-semibold text-white shadow-[0_10px_40px_-10px] shadow-pulse transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70"
+          className="mt-7 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-pulse text-[15px] font-semibold text-white shadow-[0_10px_40px_-10px] shadow-pulse transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70"
         >
           {locating && (
             <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />

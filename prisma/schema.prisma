@@ -16,6 +16,7 @@ model Presence {
   tokenHash String // sha256 of the secret session token; the token itself is never stored
   lat       Float // ALREADY privacy-offset coords (raw is never stored)
   lng       Float
+  vibe      String? // optional mood key from lib/vibes.ts, never free text
   lastSeen  DateTime
 
   // Connection state. The server only relays a signal if these say the two
@@ -23,6 +24,7 @@ model Presence {
   requestedId String? // the peer we asked to connect to and are waiting on
   requestedAt DateTime? // when we last asked, for the request cooldown
   peerId      String? // the peer we are connected to; non-null means "busy"
+  wavedAt     DateTime? // when we last waved, for the wave cooldown
 
   @@index([lastSeen])
 }
@@ -32,7 +34,7 @@ model Signal {
   id        String   @id @default(uuid())
   toId      String // recipient session id
   fromId    String // sender session id
-  type      String // request | accept | decline | offer | answer | ice | end
+  type      String // request | accept | decline | offer | answer | ice | end | wave
   payload   String? // JSON string (SDP / ICE candidate)
   createdAt DateTime @default(now())
 

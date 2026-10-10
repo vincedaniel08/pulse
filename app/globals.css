@@ -166,3 +166,31 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Mood badge riding on a dot. */
+.dot-vibe {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.8));
+}
+
+/* A dot that just waved at us: three quick, wide rings. */
+.dot[data-waving="true"]::after {
+  border-width: 2px;
+  animation: dot-wave 0.9s ease-out 3;
+}
+
+@keyframes dot-wave {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(6);
+    opacity: 0;
+  }
+}

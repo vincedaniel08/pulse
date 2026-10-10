@@ -14,6 +14,7 @@ const VALID_TYPES: SignalType[] = [
   "answer",
   "ice",
   "end",
+  "wave",
 ];
 
 // Only the WebRTC handshake carries a payload.
@@ -22,6 +23,7 @@ const HANDSHAKE_TYPES: SignalType[] = ["offer", "answer", "ice"];
 const MAX_PAYLOAD = 16 * 1024; // a full SDP with video is ~5 KB
 const MAX_QUEUED = 100; // undelivered signals one sender may park in one mailbox
 const REQUEST_COOLDOWN_MS = 2_000;
+const WAVE_COOLDOWN_MS = 3_000;
 
 function reject(error: string, status: number) {
   return Response.json({ error }, { status });
@@ -36,6 +38,7 @@ function reject(error: string, status: number) {
 //   decline  B → A   only while A.requestedId = B.
 //   offer / answer / ice   only between a connected pair.
 //   end      cancels my pending request, or ends my connection.
+//   wave     anyone → anyone online. Changes no state, rate limited.
 //
 // The sender is whoever the token belongs to; it is never read from the body.
 export async function POST(request: NextRequest) {
@@ -146,6 +149,18 @@ export async function POST(request: NextRequest) {
       } else {
         return reject("nothing to end", 409);
       }
+      break;
+    }
+
+    case "wave": {
+      if (!target) return reject("not online", 404);
+      if (me.wavedAt && Date.now() - me.wavedAt.getTime() < WAVE_COOLDOWN_MS) {
+        return reject("too many waves", 429);
+      }
+      await prisma.presence.updateMany({
+        where: { id: me.id },
+        data: { wavedAt: new Date() },
+      });
       break;
     }
 

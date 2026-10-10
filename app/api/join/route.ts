@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { applyPrivacyOffset, isValidLatLng } from "@/lib/geo";
 import { hashToken, newToken } from "@/lib/auth";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { isVibe } from "@/lib/vibes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// POST /api/join — body { lat, lng } (raw coords).
+// POST /api/join — body { lat, lng, vibe? } (raw coords).
 // Creates a session: the server picks the public id and a secret token,
 // applies the 1–3 km privacy offset and stores only the offset position.
 // Raw coordinates are never stored.
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "invalid body" }, { status: 400 });
   }
 
-  const { lat, lng } = (body ?? {}) as Record<string, unknown>;
+  const { lat, lng, vibe } = (body ?? {}) as Record<string, unknown>;
   if (!isValidLatLng(lat, lng)) {
     return Response.json({ error: "invalid coordinates" }, { status: 400 });
   }
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
       tokenHash: hashToken(token).toString("hex"),
       lat: offset.lat,
       lng: offset.lng,
+      vibe: isVibe(vibe) ? vibe : null,
       lastSeen: new Date(),
     },
     select: { id: true },

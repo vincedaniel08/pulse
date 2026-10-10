@@ -6,10 +6,12 @@ import WorldMap from "./components/WorldMap";
 import ConnectionPrompt from "./components/ConnectionPrompt";
 import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
+import PeerCard from "./components/PeerCard";
 import { join, leave, poll, sendSignal, type Session } from "@/lib/api";
 import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
 import { POLL_INTERVAL_MS } from "@/lib/presence";
 import { dotColor } from "@/lib/color";
+import type { Vibe } from "@/lib/vibes";
 import {
   type PeerDot,
   type PollResponse,
@@ -24,6 +26,11 @@ type Conn =
   | { kind: "connecting"; peerId: string }
   | { kind: "connected"; peerId: string };
 
+interface Notice {
+  text: string;
+  action?: { label: string; run: () => void };
+}
+
 type VideoState = "none" | "requesting" | "incoming" | "active";
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -36,7 +43,7 @@ export default function Home() {
   const sessionRef = useRef<Session | null>(null);
   const [peers, setPeers] = useState<PeerDot[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(
@@ -57,8 +64,15 @@ export default function Home() {
     _setVideo(v);
   };
 
+  // The dot whose card is open, the latest wave we got, and the people this
+  // user hid. All of it lives in memory and dies with the tab.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [waveFrom, setWaveFrom] = useState<{ id: string; at: number } | null>(null);
+  const [blocked, setBlocked] = useState<ReadonlySet<string>>(new Set());
+
   // Real coordinates stay in memory only, so we can rejoin if the session expires.
   const rawLocation = useRef<{ lat: number; lng: number } | null>(null);
+  const vibeRef = useRef<Vibe | null>(null);
   const peerRef = useRef<PeerSession | null>(null);
   const msgId = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,17 +91,18 @@ export default function Home() {
   // Start (or restart) a session from the real coordinates. The "me" pin uses
   // the offset position that comes back, i.e. the dot everyone else sees.
   async function enter(lat: number, lng: number) {
-    const me = await join(lat, lng);
+    const me = await join(lat, lng, vibeRef.current);
     sessionRef.current = { id: me.id, token: me.token };
     setSession(sessionRef.current);
     setMyLocation({ lat: me.lat, lng: me.lng });
   }
 
-  function showNotice(text: string) {
+  function showNotice(text: string, action?: Notice["action"]) {
     // Restart the clock, so an older toast can't dismiss a newer one early.
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    setNotice(text);
-    noticeTimer.current = setTimeout(() => setNotice(null), 4000);
+    setNotice({ text, action });
+    // Leave more time when there is something to tap.
+    noticeTimer.current = setTimeout(() => setNotice(null), action ? 8000 : 4000);
   }
 
   function addMessage(mine: boolean, text: string) {
@@ -175,8 +190,29 @@ export default function Home() {
     }
   }
 
+  function wave(peerId: string) {
+    void signal(peerId, "wave").then((ok) =>
+      showNotice(ok ? "Wave sent 👋" : "Easy there, one wave at a time."),
+    );
+  }
+
+  // Hide someone for the rest of this session: their dot disappears and their
+  // requests and waves are dropped. It is local on purpose. There are no
+  // accounts to attach a server-side block to, and it leaves no record.
+  function block(peerId: string) {
+    setBlocked((prev) => new Set(prev).add(peerId));
+    setSelectedId(null);
+    const c = connRef.current;
+    if (c.kind !== "idle" && c.peerId === peerId) {
+      if (c.kind === "incoming") declineIncoming();
+      else endConnection();
+    }
+    showNotice("Hidden. You won't see or hear from them again this session.");
+  }
+
   function requestConnection(peerId: string) {
     if (connRef.current.kind !== "idle") return;
+    setSelectedId(null);
     setConn({ kind: "requesting", peerId });
     void signal(peerId, "request").then((ok) => {
       const c = connRef.current;
@@ -262,8 +298,18 @@ export default function Home() {
 
   function processSignal(sig: SignalMsg) {
     switch (sig.type) {
+      case "wave": {
+        if (blocked.has(sig.fromId)) break;
+        setWaveFrom({ id: sig.fromId, at: Date.now() });
+        showNotice("👋 A stranger waved at you", {
+          label: "Wave back",
+          run: () => wave(sig.fromId),
+        });
+        break;
+      }
       case "request": {
-        if (connRef.current.kind === "idle") {
+        if (connRef.current.kind === "idle" && !blocked.has(sig.fromId)) {
+          setSelectedId(null);
           setConn({ kind: "incoming", peerId: sig.fromId });
         } else {
           void signal(sig.fromId, "decline");
@@ -379,13 +425,17 @@ export default function Home() {
     };
   }, [session]);
 
-  async function handleReady(lat: number, lng: number) {
+  async function handleReady(lat: number, lng: number, vibe: Vibe | null) {
     rawLocation.current = { lat, lng };
+    vibeRef.current = vibe;
     await enter(lat, lng);
   }
 
   const inChat = conn.kind === "connecting" || conn.kind === "connected";
   const peerColor = conn.kind === "idle" ? "#fff" : dotColor(conn.peerId);
+  const visiblePeers = peers.filter((p) => !blocked.has(p.id));
+  const selected =
+    conn.kind === "idle" ? visiblePeers.find((p) => p.id === selectedId) : undefined;
   const pill =
     "glass animate-rise absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full text-sm whitespace-nowrap";
 
@@ -393,10 +443,15 @@ export default function Home() {
     <main className="fixed inset-0 overflow-hidden bg-ink">
       {/* The globe is always there; before joining it just spins behind the gate. */}
       <WorldMap
-        peers={peers}
+        peers={visiblePeers}
         me={myLocation}
-        linkedPeerId={conn.kind === "idle" || conn.kind === "incoming" ? null : conn.peerId}
-        onPeerClick={requestConnection}
+        linkedPeerId={
+          conn.kind === "idle" || conn.kind === "incoming"
+            ? (selected?.id ?? null)
+            : conn.peerId
+        }
+        waveFrom={waveFrom}
+        onPeerClick={setSelectedId}
         canConnect={conn.kind === "idle"}
       />
 
@@ -411,24 +466,45 @@ export default function Home() {
           <span className="text-sm font-semibold tracking-wide">Pulse</span>
           <span className="h-3.5 w-px bg-line" />
           <span className="text-sm text-zinc-400" aria-live="polite">
-            {peers.length === 0
+            {visiblePeers.length === 0
               ? "Just you so far"
-              : `${peers.length} ${peers.length === 1 ? "stranger" : "strangers"} online`}
+              : `${visiblePeers.length} ${visiblePeers.length === 1 ? "stranger" : "strangers"} online`}
           </span>
         </header>
       )}
 
-      {session && conn.kind === "idle" && (
+      {selected && myLocation && (
+        <PeerCard
+          peer={selected}
+          me={myLocation}
+          onWave={() => wave(selected.id)}
+          onConnect={() => requestConnection(selected.id)}
+          onBlock={() => block(selected.id)}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+
+      {session && conn.kind === "idle" && !selected && (
         <p className="animate-fade pointer-events-none absolute inset-x-0 bottom-10 z-10 px-6 text-center text-sm text-zinc-400 [text-shadow:0_1px_12px_#000]">
-          {peers.length === 0
+          {visiblePeers.length === 0
             ? "No one else is here yet. Stay a while, dots appear the moment someone joins."
-            : "Tap a glowing dot to ask a stranger to talk."}
+            : "Tap a glowing dot to see who's there."}
         </p>
       )}
 
       {notice && (
-        <div role="status" className={`${pill} top-20 px-4 py-2.5`}>
-          {notice}
+        <div role="status" className={`${pill} top-20 py-2 pl-4 ${notice.action ? "pr-2" : "pr-4"}`}>
+          {notice.text}
+          {notice.action && (
+            <button
+              onClick={() => {
+                notice.action?.run();
+              }}
+              className="rounded-full bg-pulse px-3.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+            >
+              {notice.action.label}
+            </button>
+          )}
         </div>
       )}
 
@@ -474,6 +550,7 @@ export default function Home() {
           }}
           onTyping={sendTyping}
           onStartVideo={startVideoRequest}
+          onBlock={() => block(conn.peerId)}
           onEnd={endConnection}
         />
       )}

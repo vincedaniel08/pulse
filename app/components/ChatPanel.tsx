@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MAX_CHAT_LENGTH } from "@/lib/webrtc";
-import { CloseIcon, LockIcon, SendIcon, VideoIcon } from "./icons";
+import { BlockIcon, CloseIcon, LockIcon, SendIcon, VideoIcon } from "./icons";
 
 export interface ChatMessage {
   id: number;
@@ -19,6 +19,7 @@ export default function ChatPanel({
   onSend,
   onTyping,
   onStartVideo,
+  onBlock,
   onEnd,
 }: {
   messages: ChatMessage[];
@@ -29,6 +30,7 @@ export default function ChatPanel({
   onSend: (text: string) => void;
   onTyping: () => void;
   onStartVideo: () => void;
+  onBlock: () => void;
   onEnd: () => void;
 }) {
   const [draft, setDraft] = useState("");
@@ -81,6 +83,14 @@ export default function ChatPanel({
           className="flex size-10 items-center justify-center rounded-full bg-white/[0.07] text-zinc-100 transition hover:bg-white/[0.14] disabled:opacity-35"
         >
           <VideoIcon />
+        </button>
+        <button
+          onClick={onBlock}
+          aria-label="Block and leave"
+          title="Block and leave"
+          className="flex size-10 items-center justify-center rounded-full bg-white/[0.07] text-zinc-100 transition hover:bg-white/[0.14]"
+        >
+          <BlockIcon />
         </button>
         <button
           onClick={onEnd}

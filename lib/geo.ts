@@ -89,3 +89,37 @@ export function greatCircle(a: LatLng, b: LatLng, steps = 64): [number, number][
   }
   return points;
 }
+
+const EARTH_RADIUS_KM = 6371;
+
+export function distanceKm(a: LatLng, b: LatLng): number {
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+}
+
+// "Nearby", "~340 km away", "~8,400 km away". Deliberately vague: both dots
+// are already fuzzed by up to 3 km, so more digits would be false precision.
+export function describeDistance(km: number): string {
+  if (km < 50) return "Nearby";
+  const step = km < 1000 ? 10 : 100;
+  return `~${(Math.round(km / step) * step).toLocaleString("en-US")} km away`;
+}
+
+// What part of the day it is at a longitude.
+// ponytail: this is solar time (15° per hour), not the legal time zone, so it
+// can be an hour or two off. Good enough for "it's the middle of the night
+// there"; an exact clock would need a time zone lookup for each coordinate.
+export function describeTimeOfDay(lng: number, now = new Date()): string {
+  const utc = now.getUTCHours() + now.getUTCMinutes() / 60;
+  const hour = (((utc + lng / 15) % 24) + 24) % 24;
+  if (hour < 5) return "Middle of the night there";
+  if (hour < 8) return "Early morning there";
+  if (hour < 12) return "Morning there";
+  if (hour < 17) return "Afternoon there";
+  if (hour < 21) return "Evening there";
+  return "Late night there";
+}

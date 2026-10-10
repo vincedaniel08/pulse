@@ -1,5 +1,6 @@
 // Client-side helpers for talking to the coordination API.
 import type { PollResponse, SignalType } from "@/lib/types";
+import type { Vibe } from "@/lib/vibes";
 
 export interface Session {
   id: string; // public, other peers see it
@@ -13,11 +14,12 @@ function auth(session: Session): HeadersInit {
 export async function join(
   lat: number,
   lng: number,
+  vibe: Vibe | null,
 ): Promise<Session & { lat: number; lng: number }> {
   const res = await fetch("/api/join", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lat, lng }),
+    body: JSON.stringify({ lat, lng, vibe }),
   });
   if (!res.ok) throw new Error(`join failed: ${res.status}`);
   return res.json();

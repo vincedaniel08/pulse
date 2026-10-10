@@ -12,7 +12,8 @@ datasource db {
 }
 
 model Presence {
-  id       String   @id // client-generated session uuid
+  id        String @id @default(uuid()) // public id, shown to every peer
+  tokenHash String // sha256 of the secret session token; the token itself is never stored
   lat      Float // ALREADY privacy-offset coords (raw is never stored)
   lng      Float
   busy     Boolean  @default(false) // true while in an active connection

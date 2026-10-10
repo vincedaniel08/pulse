@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { authenticate, isSessionId, unauthorized } from "@/lib/auth";
 import type { SignalType } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -17,10 +18,15 @@ const VALID_TYPES: SignalType[] = [
 
 const MAX_PAYLOAD = 64 * 1024; // SDP/ICE are small; cap to be safe.
 
-// POST /api/signal — body { fromId, toId, type, payload? }
+// POST /api/signal — body { toId, type, payload? }
+// The sender is whoever the token belongs to; it is never read from the body.
 // Drops one message into the recipient's mailbox. Also manages the `busy`
 // flag so a user can only be in one connection at a time.
 export async function POST(request: NextRequest) {
+  const me = await authenticate(request);
+  if (!me) return unauthorized();
+  const fromId = me.id;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -28,13 +34,10 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "invalid body" }, { status: 400 });
   }
 
-  const { fromId, toId, type, payload } = (body ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const { toId, type, payload } = (body ?? {}) as Record<string, unknown>;
 
-  if (typeof fromId !== "string" || typeof toId !== "string") {
-    return Response.json({ error: "invalid ids" }, { status: 400 });
+  if (!isSessionId(toId) || toId === fromId) {
+    return Response.json({ error: "invalid recipient" }, { status: 400 });
   }
   if (typeof type !== "string" || !VALID_TYPES.includes(type as SignalType)) {
     return Response.json({ error: "invalid type" }, { status: 400 });

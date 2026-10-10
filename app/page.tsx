@@ -6,10 +6,15 @@ import WorldMap from "./components/WorldMap";
 import ConnectionPrompt from "./components/ConnectionPrompt";
 import ChatPanel, { type ChatMessage } from "./components/ChatPanel";
 import VideoPanel from "./components/VideoPanel";
-import { join, leave, poll, sendSignal } from "@/lib/api";
+import { join, leave, poll, sendSignal, type Session } from "@/lib/api";
 import { PeerSession, type DescType, type PeerControl } from "@/lib/webrtc";
 import { POLL_INTERVAL_MS } from "@/lib/presence";
-import { type PeerDot, type SignalMsg } from "@/lib/types";
+import {
+  type PeerDot,
+  type PollResponse,
+  type SignalMsg,
+  type SignalType,
+} from "@/lib/types";
 
 type Conn =
   | { kind: "idle" }
@@ -23,8 +28,9 @@ type VideoState = "none" | "requesting" | "incoming" | "active";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export default function Home() {
-  const [phase, setPhase] = useState<"gate" | "live">("gate");
-  const [sessionId] = useState(() => crypto.randomUUID());
+  // Null until the server has issued us a session (id + secret token).
+  const [session, setSession] = useState<Session | null>(null);
+  const sessionRef = useRef<Session | null>(null);
   const [peers, setPeers] = useState<PeerDot[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
@@ -54,6 +60,21 @@ export default function Home() {
   const msgId = useRef(0);
   const requestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  function signal(toId: string, type: SignalType, payload?: string) {
+    if (sessionRef.current) {
+      void sendSignal(sessionRef.current, toId, type, payload);
+    }
+  }
+
+  // Start (or restart) a session from the real coordinates. The "me" pin uses
+  // the offset position that comes back, i.e. the dot everyone else sees.
+  async function enter(lat: number, lng: number) {
+    const me = await join(lat, lng);
+    sessionRef.current = { id: me.id, token: me.token };
+    setSession(sessionRef.current);
+    setMyLocation({ lat: me.lat, lng: me.lng });
+  }
+
   function showNotice(text: string) {
     setNotice(text);
     window.setTimeout(() => setNotice(null), 3500);
@@ -78,7 +99,7 @@ export default function Home() {
   function startPeer(peerId: string, initiator: boolean) {
     const ps = new PeerSession(initiator, {
       onSignal: (type: DescType, payload: string) => {
-        void sendSignal(sessionId, peerId, type, payload);
+        signal(peerId, type, payload);
       },
       onChat: (text) => addMessage(false, text),
       onControl: (ctrl) => handleControl(ctrl),
@@ -133,13 +154,13 @@ export default function Home() {
   function requestConnection(peerId: string) {
     if (connRef.current.kind !== "idle") return;
     setConn({ kind: "requesting", peerId });
-    void sendSignal(sessionId, peerId, "request");
+    signal(peerId, "request");
     requestTimer.current = setTimeout(() => {
       if (
         connRef.current.kind === "requesting" &&
         connRef.current.peerId === peerId
       ) {
-        void sendSignal(sessionId, peerId, "end");
+        signal(peerId, "end");
         teardown("No answer.");
       }
     }, REQUEST_TIMEOUT_MS);
@@ -147,7 +168,7 @@ export default function Home() {
 
   function cancelRequest() {
     if (connRef.current.kind === "requesting") {
-      void sendSignal(sessionId, connRef.current.peerId, "end");
+      signal(connRef.current.peerId, "end");
     }
     teardown();
   }
@@ -156,20 +177,20 @@ export default function Home() {
     if (connRef.current.kind !== "incoming") return;
     const peerId = connRef.current.peerId;
     startPeer(peerId, false);
-    void sendSignal(sessionId, peerId, "accept");
+    signal(peerId, "accept");
     setConn({ kind: "connecting", peerId });
   }
 
   function declineIncoming() {
     if (connRef.current.kind !== "incoming") return;
-    void sendSignal(sessionId, connRef.current.peerId, "decline");
+    signal(connRef.current.peerId, "decline");
     setConn({ kind: "idle" });
   }
 
   function endConnection() {
     const c = connRef.current;
     if (c.kind === "connecting" || c.kind === "connected") {
-      void sendSignal(sessionId, c.peerId, "end");
+      signal(c.peerId, "end");
     }
     teardown();
   }
@@ -216,7 +237,7 @@ export default function Home() {
         if (connRef.current.kind === "idle") {
           setConn({ kind: "incoming", peerId: sig.fromId });
         } else {
-          void sendSignal(sessionId, sig.fromId, "decline");
+          signal(sig.fromId, "decline");
         }
         break;
       }
@@ -267,36 +288,43 @@ export default function Home() {
     }
   }
 
-  const processSignalRef = useRef(processSignal);
+  async function handlePoll(data: PollResponse | null) {
+    if (!data) {
+      // Our session is gone, and so is any connection that hung off it.
+      if (connRef.current.kind !== "idle") teardown("Connection lost.");
+      const raw = rawLocation.current;
+      if (raw) await enter(raw.lat, raw.lng);
+      return;
+    }
+    setPeers(data.peers);
+    for (const s of data.signals) processSignal(s);
+
+    // A peer that closed the tab or lost network never sends "end".
+    // Once their dot is gone, stop waiting for them.
+    const c = connRef.current;
+    if (c.kind !== "idle" && !data.peers.some((p) => p.id === c.peerId)) {
+      signal(c.peerId, "end"); // clears our busy flag
+      if (c.kind === "incoming") setConn({ kind: "idle" });
+      else teardown("Stranger disconnected.");
+    }
+  }
+
+  // The poll loop is set up once per session but must call the handler from
+  // the latest render, so it goes through a ref.
+  const handlePollRef = useRef(handlePoll);
   useEffect(() => {
-    processSignalRef.current = processSignal;
+    handlePollRef.current = handlePoll;
   });
 
   useEffect(() => {
-    if (phase !== "live" || !sessionId) return;
+    if (!session) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const tick = async () => {
       try {
-        const data = await poll(sessionId);
-        if (!active) return;
-        if (!data) {
-          const raw = rawLocation.current;
-          if (raw) setMyLocation(await join(sessionId, raw.lat, raw.lng));
-          return;
-        }
-        setPeers(data.peers);
-        for (const s of data.signals) processSignalRef.current(s);
-
-        // A peer that closed the tab or lost network never sends "end".
-        // Once their dot is gone, stop waiting for them.
-        const c = connRef.current;
-        if (c.kind !== "idle" && !data.peers.some((p) => p.id === c.peerId)) {
-          void sendSignal(sessionId, c.peerId, "end"); // clears our busy flag
-          if (c.kind === "incoming") setConn({ kind: "idle" });
-          else teardown("Stranger disconnected.");
-        }
+        const data = await poll(session);
+        if (active) await handlePollRef.current(data);
       } catch {
         // Network blip: keep polling.
       } finally {
@@ -309,27 +337,25 @@ export default function Home() {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [phase, sessionId]);
+  }, [session]);
 
   useEffect(() => {
-    if (!sessionId || phase !== "live") return;
-    const onLeave = () => leave(sessionId);
+    if (!session) return;
+    const onLeave = () => leave(session);
     window.addEventListener("pagehide", onLeave);
     window.addEventListener("beforeunload", onLeave);
     return () => {
       window.removeEventListener("pagehide", onLeave);
       window.removeEventListener("beforeunload", onLeave);
     };
-  }, [sessionId, phase]);
+  }, [session]);
 
   async function handleReady(lat: number, lng: number) {
     rawLocation.current = { lat, lng };
-    // Pin "me" where everyone else sees the dot, not at the real coordinates.
-    setMyLocation(await join(sessionId, lat, lng));
-    setPhase("live");
+    await enter(lat, lng);
   }
 
-  if (phase === "gate") {
+  if (!session) {
     return <EntryGate onReady={handleReady} />;
   }
 

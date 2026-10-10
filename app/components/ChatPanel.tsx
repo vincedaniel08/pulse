@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { MAX_CHAT_LENGTH } from "@/lib/webrtc";
 
 export interface ChatMessage {
   id: number;
@@ -95,6 +96,7 @@ export default function ChatPanel({
           onChange={(e) => setDraft(e.target.value)}
           placeholder={connected ? "Type a message…" : "Connecting…"}
           disabled={!connected}
+          maxLength={MAX_CHAT_LENGTH}
           className="flex-1 rounded-full bg-zinc-900 px-4 py-2 text-sm outline-none placeholder:text-zinc-600 focus:ring-1 focus:ring-emerald-400 disabled:opacity-50"
         />
         <button

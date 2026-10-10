@@ -14,6 +14,16 @@ interface PeerCallbacks {
   onChannelOpen: () => void;
 }
 
+// The other side of the data channel is a stranger's browser, so anything
+// that arrives on it is untrusted input.
+export const MAX_CHAT_LENGTH = 2_000;
+const CONTROLS: PeerControl[] = [
+  "video-request",
+  "video-accept",
+  "video-decline",
+  "video-end",
+];
+
 const ICE_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -77,11 +87,12 @@ export class PeerSession {
     dc.onopen = () => this.cb.onChannelOpen();
     dc.onmessage = (e) => {
       try {
-        const msg = JSON.parse(e.data as string);
+        if (typeof e.data !== "string") return;
+        const msg = JSON.parse(e.data);
         if (msg.t === "chat" && typeof msg.text === "string") {
-          this.cb.onChat(msg.text);
-        } else if (msg.t === "ctrl" && typeof msg.ctrl === "string") {
-          this.cb.onControl(msg.ctrl as PeerControl);
+          this.cb.onChat(msg.text.slice(0, MAX_CHAT_LENGTH));
+        } else if (msg.t === "ctrl" && CONTROLS.includes(msg.ctrl)) {
+          this.cb.onControl(msg.ctrl);
         }
       } catch {}
     };

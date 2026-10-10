@@ -77,6 +77,8 @@ export default function WorldMap({
       });
       map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
       mapRef.current = map;
+      // Keep the globe clear of the entry panel on wide screens.
+      if (window.innerWidth >= 640) map.setPadding({ left: 400, top: 0, right: 0, bottom: 0 });
 
       // Drift the globe one second at a time; each finished step queues the
       // next, and any user gesture simply interrupts it.
@@ -90,11 +92,11 @@ export default function WorldMap({
 
       map.on("style.load", () => {
         map.setFog({
-          color: "rgb(12, 18, 36)",
-          "high-color": "rgb(40, 60, 140)",
-          "horizon-blend": 0.04,
-          "space-color": "rgb(5, 7, 13)",
-          "star-intensity": 0.7,
+          color: "rgb(16, 16, 20)",
+          "high-color": "rgb(60, 70, 110)",
+          "horizon-blend": 0.03,
+          "space-color": "rgb(9, 9, 11)",
+          "star-intensity": 0.35,
         });
         map.addSource("link", { type: "geojson", data: EMPTY_LINE });
         map.addLayer({
@@ -102,14 +104,14 @@ export default function WorldMap({
           type: "line",
           source: "link",
           layout: { "line-cap": "round" },
-          paint: { "line-color": "#ff5c7a", "line-width": 8, "line-opacity": 0.18, "line-blur": 6 },
+          paint: { "line-color": "#ff5a36", "line-width": 6, "line-opacity": 0.15, "line-blur": 4 },
         });
         map.addLayer({
           id: "link",
           type: "line",
           source: "link",
           layout: { "line-cap": "round" },
-          paint: { "line-color": "#ff93a7", "line-width": 1.6, "line-dasharray": [1, 2.5] },
+          paint: { "line-color": "#ff8f73", "line-width": 1.5, "line-dasharray": [1, 2.5] },
         });
         if (!cancelled) setReady(true);
         spin();
@@ -142,7 +144,13 @@ export default function WorldMap({
       meMarkerRef.current = new mapboxgl.Marker({ element: el })
         .setLngLat([me.lng, me.lat])
         .addTo(map);
-      map.flyTo({ center: [me.lng, me.lat], zoom: 3.2, duration: 2800, essential: true });
+      map.flyTo({
+        center: [me.lng, me.lat],
+        zoom: 3,
+        padding: { left: 0, top: 0, right: 0, bottom: 0 },
+        duration: 2400,
+        essential: true,
+      });
     } else {
       meMarkerRef.current.setLngLat([me.lng, me.lat]);
     }
@@ -165,12 +173,7 @@ export default function WorldMap({
         const el = document.createElement("button");
         el.className = "dot";
         el.style.setProperty("--c", dotColor(peer.id));
-        if (peer.vibe) {
-          const badge = document.createElement("span");
-          badge.className = "dot-vibe";
-          badge.textContent = VIBES[peer.vibe].emoji;
-          el.append(badge);
-        }
+        if (peer.vibe) el.title = VIBES[peer.vibe];
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           if (canConnectRef.current) onPeerClickRef.current(peer.id);
@@ -232,7 +235,11 @@ export default function WorldMap({
         [Math.min(...lngs), Math.min(...lats)],
         [Math.max(...lngs), Math.max(...lats)],
       ],
-      { padding: { top: 120, bottom: 120, left: 80, right: 80 }, maxZoom: 5, duration: 1600 },
+      {
+        padding: { top: 120, bottom: 260, left: 80, right: window.innerWidth >= 640 ? 440 : 80 },
+        maxZoom: 5,
+        duration: 1400,
+      },
     );
   }, [me, linkLat, linkLng, ready]);
 
@@ -242,7 +249,7 @@ export default function WorldMap({
 
       {!TOKEN && (
         <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-          <p className="glass max-w-md rounded-2xl p-5 text-sm text-zinc-200">
+          <p className="surface max-w-md rounded-xl p-5 text-sm text-zinc-200">
             Set <code className="text-pulse-soft">NEXT_PUBLIC_MAPBOX_TOKEN</code>{" "}
             in <code>.env</code> to load the map.
           </p>

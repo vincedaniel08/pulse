@@ -50,7 +50,7 @@ export default function VideoPanel({
   }
 
   const round =
-    "flex size-13 items-center justify-center rounded-full transition active:scale-95";
+    "flex size-11 items-center justify-center rounded-lg transition";
 
   return (
     <section
@@ -71,7 +71,7 @@ export default function VideoPanel({
           </p>
           <button
             onClick={() => setRevealed(true)}
-            className="glass flex h-12 items-center gap-2 rounded-full px-6 text-sm font-semibold transition hover:brightness-125 active:scale-95"
+            className="flex h-11 items-center gap-2 rounded-lg bg-white px-5 text-sm font-medium text-black transition hover:bg-zinc-200"
           >
             <EyeIcon /> Show video
           </button>
@@ -84,8 +84,8 @@ export default function VideoPanel({
         </div>
       )}
 
-      <p className="glass absolute top-4 left-4 flex items-center gap-2 rounded-full px-3.5 py-2 text-xs text-zinc-300">
-        <LockIcon /> Direct call, not recorded
+      <p className="surface absolute top-4 left-4 flex items-center gap-2 rounded-md px-3 py-1.5 text-xs text-zinc-300">
+        <LockIcon /> Peer to peer, not recorded
       </p>
 
       {/* Mirrored, like every selfie preview. */}
@@ -94,10 +94,10 @@ export default function VideoPanel({
         autoPlay
         playsInline
         muted
-        className={`absolute top-4 right-4 h-44 w-32 -scale-x-100 rounded-2xl border border-white/15 bg-zinc-900 object-cover shadow-2xl sm:h-56 sm:w-40 ${camOn ? "" : "opacity-0"}`}
+        className={`absolute top-4 right-4 h-44 w-32 -scale-x-100 rounded-xl border border-white/15 bg-zinc-900 object-cover sm:h-56 sm:w-40 ${camOn ? "" : "opacity-0"}`}
       />
 
-      <div className="absolute inset-x-0 bottom-0 flex justify-center gap-3 bg-gradient-to-t from-black/80 to-transparent p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 bg-gradient-to-t from-black/80 to-transparent p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <button
           onClick={toggleMic}
           aria-pressed={!micOn}
@@ -117,14 +117,14 @@ export default function VideoPanel({
         {revealed && (
           <button
             onClick={() => setRevealed(false)}
-            className="h-13 rounded-full bg-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/25 active:scale-95"
+            className="h-11 rounded-lg bg-white/15 px-4 text-sm font-medium text-white transition hover:bg-white/25"
           >
             Blur
           </button>
         )}
         <button
           onClick={onEnd}
-          className="h-13 rounded-full bg-pulse px-7 text-[15px] font-semibold text-white transition hover:brightness-110 active:scale-95"
+          className="h-11 rounded-lg bg-pulse px-5 text-sm font-medium text-white transition hover:brightness-110"
         >
           End video
         </button>

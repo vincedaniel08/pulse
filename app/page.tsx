@@ -192,7 +192,7 @@ export default function Home() {
 
   function wave(peerId: string) {
     void signal(peerId, "wave").then((ok) =>
-      showNotice(ok ? "Wave sent 👋" : "Easy there, one wave at a time."),
+      showNotice(ok ? "Wave sent." : "One wave at a time."),
     );
   }
 
@@ -301,7 +301,7 @@ export default function Home() {
       case "wave": {
         if (blocked.has(sig.fromId)) break;
         setWaveFrom({ id: sig.fromId, at: Date.now() });
-        showNotice("👋 A stranger waved at you", {
+        showNotice("A stranger waved at you.", {
           label: "Wave back",
           run: () => wave(sig.fromId),
         });
@@ -437,7 +437,7 @@ export default function Home() {
   const selected =
     conn.kind === "idle" ? visiblePeers.find((p) => p.id === selectedId) : undefined;
   const pill =
-    "glass animate-rise absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full text-sm whitespace-nowrap";
+    "surface animate-rise absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg text-sm whitespace-nowrap";
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-ink">
@@ -458,12 +458,9 @@ export default function Home() {
       {!session && <EntryGate onReady={handleReady} />}
 
       {session && !inChat && (
-        <header className="glass animate-fade absolute top-4 left-4 z-10 flex items-center gap-3 rounded-full py-2 pr-4 pl-3.5">
-          <span className="relative flex size-2.5">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-pulse opacity-70" />
-            <span className="relative inline-flex size-2.5 rounded-full bg-pulse" />
-          </span>
-          <span className="text-sm font-semibold tracking-wide">Pulse</span>
+        <header className="surface animate-fade absolute top-4 left-4 z-10 flex items-center gap-2.5 rounded-lg px-3 py-2">
+          <span className="size-2 rounded-full bg-pulse" />
+          <span className="text-sm font-semibold">Pulse</span>
           <span className="h-3.5 w-px bg-line" />
           <span className="text-sm text-zinc-400" aria-live="polite">
             {visiblePeers.length === 0
@@ -487,8 +484,8 @@ export default function Home() {
       {session && conn.kind === "idle" && !selected && (
         <p className="animate-fade pointer-events-none absolute inset-x-0 bottom-10 z-10 px-6 text-center text-sm text-zinc-400 [text-shadow:0_1px_12px_#000]">
           {visiblePeers.length === 0
-            ? "No one else is here yet. Stay a while, dots appear the moment someone joins."
-            : "Tap a glowing dot to see who's there."}
+            ? "No one else is here yet. Dots appear the moment someone joins."
+            : "Tap a dot to see who's there."}
         </p>
       )}
 
@@ -500,7 +497,7 @@ export default function Home() {
               onClick={() => {
                 notice.action?.run();
               }}
-              className="rounded-full bg-pulse px-3.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
+              className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-black transition hover:bg-zinc-200"
             >
               {notice.action.label}
             </button>
@@ -514,10 +511,10 @@ export default function Home() {
             className="size-2.5 animate-pulse rounded-full"
             style={{ background: peerColor }}
           />
-          Asking a stranger to talk…
+          Waiting for them to answer…
           <button
             onClick={cancelRequest}
-            className="rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium transition hover:bg-white/20"
+            className="rounded-md border border-line px-2.5 py-1 text-xs font-medium transition hover:bg-white/[0.06]"
           >
             Cancel
           </button>
@@ -527,9 +524,9 @@ export default function Home() {
       {conn.kind === "incoming" && (
         <ConnectionPrompt
           title="A stranger wants to talk"
-          subtitle="Text first. Video only if you both agree."
+          subtitle="Starts as text. Video only if you both agree."
           accent={peerColor}
-          acceptLabel="Say hi"
+          acceptLabel="Accept"
           declineLabel="Not now"
           timeoutMs={REQUEST_TIMEOUT_MS}
           onAccept={acceptIncoming}
@@ -565,10 +562,10 @@ export default function Home() {
       {video === "incoming" && (
         <ConnectionPrompt
           title="Turn on video?"
-          subtitle="The stranger would like to see and hear you."
+          subtitle="They would like to start a video call."
           accent={peerColor}
           acceptLabel="Start video"
-          declineLabel="Keep typing"
+          declineLabel="Not now"
           onAccept={acceptVideo}
           onDecline={declineVideo}
         />

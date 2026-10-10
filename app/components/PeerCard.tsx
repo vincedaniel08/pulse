@@ -30,21 +30,16 @@ export default function PeerCard({
   return (
     <section
       aria-label="Stranger"
-      className="glass animate-rise absolute inset-x-3 bottom-3 z-30 rounded-3xl p-5 sm:inset-x-auto sm:bottom-8 sm:left-1/2 sm:w-[360px] sm:-translate-x-1/2"
+      className="surface animate-rise absolute inset-x-3 bottom-3 z-30 rounded-xl p-4 sm:inset-x-auto sm:bottom-8 sm:left-1/2 sm:w-[360px] sm:-translate-x-1/2"
     >
       <div className="flex items-start gap-3.5">
         <span
-          className="flex size-12 shrink-0 items-center justify-center rounded-full text-xl"
-          style={{
-            background: `color-mix(in srgb, ${color} 24%, transparent)`,
-            boxShadow: `inset 0 0 0 1.5px ${color}`,
-          }}
-        >
-          {vibe?.emoji ?? "👤"}
-        </span>
+          className="mt-1 size-3 shrink-0 rounded-full"
+          style={{ background: color }}
+        />
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold text-zinc-50">
-            {vibe ? vibe.label : "A stranger"}
+            {vibe ?? "A stranger"}
           </h2>
           <p className="text-sm text-zinc-400">
             {describeDistance(distanceKm(me, peer))} · {describeTimeOfDay(peer.lng)}
@@ -53,23 +48,23 @@ export default function PeerCard({
         <button
           onClick={onClose}
           aria-label="Close"
-          className="-mt-1 -mr-1 flex size-8 items-center justify-center rounded-full text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100"
+          className="-mt-1 -mr-1 flex size-8 items-center justify-center rounded-md text-zinc-400 transition hover:bg-white/10 hover:text-zinc-100"
         >
           <CloseIcon />
         </button>
       </div>
 
-      <div className="mt-5 flex gap-2.5">
+      <div className="mt-4 flex gap-2">
         <button
           onClick={onWave}
-          className="h-11 flex-1 rounded-full bg-white/[0.07] text-sm font-medium text-zinc-100 transition hover:bg-white/[0.12] active:scale-[0.98]"
+          className="h-10 flex-1 rounded-lg border border-line text-sm font-medium text-zinc-100 transition hover:bg-white/[0.06]"
         >
-          👋 Wave
+          Wave
         </button>
         <button
           onClick={onConnect}
           disabled={peer.busy}
-          className="h-11 flex-[1.4] rounded-full bg-pulse text-sm font-semibold text-white transition hover:brightness-110 active:scale-[0.98] disabled:bg-white/[0.07] disabled:text-zinc-500"
+          className="h-10 flex-[1.4] rounded-lg bg-white text-sm font-medium text-black transition hover:bg-zinc-200 disabled:bg-white/[0.06] disabled:text-zinc-500"
         >
           {peer.busy ? "In a conversation" : "Ask to talk"}
         </button>
@@ -77,7 +72,7 @@ export default function PeerCard({
 
       <button
         onClick={onBlock}
-        className="mx-auto mt-3.5 flex items-center gap-1.5 text-xs text-zinc-500 transition hover:text-zinc-300"
+        className="mt-3 flex items-center gap-1.5 text-xs text-zinc-500 transition hover:text-zinc-300"
       >
         <BlockIcon /> Hide this person for the rest of my session
       </button>

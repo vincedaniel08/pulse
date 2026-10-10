@@ -2,24 +2,11 @@
 
 import { useState } from "react";
 import { VIBES, type Vibe } from "@/lib/vibes";
-import { GhostIcon, LockIcon, PinIcon } from "./icons";
 
-const PROMISES = [
-  {
-    icon: <PinIcon />,
-    title: "Roughly here",
-    text: "Your dot lands 1–3 km from where you really are.",
-  },
-  {
-    icon: <LockIcon />,
-    title: "Just between you two",
-    text: "Chat and video go directly between browsers, never through us.",
-  },
-  {
-    icon: <GhostIcon />,
-    title: "Gone when you go",
-    text: "No account, no history. Close the tab and your dot disappears.",
-  },
+const FACTS = [
+  ["Location", "Your dot is placed 1–3 km away from where you are."],
+  ["Messages", "Chat and video go browser to browser. Nothing is stored."],
+  ["Session", "No account. Close the tab and your dot is gone."],
 ];
 
 export default function EntryGate({
@@ -61,59 +48,50 @@ export default function EntryGate({
 
   const locating = status === "locating";
 
+  // A sheet on phones, a side panel on wider screens, so the globe stays in view.
   return (
-    <div className="absolute inset-0 z-40 flex items-end justify-center overflow-y-auto bg-gradient-to-t from-ink via-ink/70 to-ink/10 p-4 sm:items-center sm:p-6">
-      <div className="glass animate-rise w-full max-w-md rounded-[28px] p-7 sm:p-9">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex size-3">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-pulse opacity-70" />
-            <span className="relative inline-flex size-3 rounded-full bg-pulse" />
-          </span>
-          <span className="text-sm font-medium tracking-[0.2em] text-zinc-300 uppercase">
-            Pulse
-          </span>
-        </div>
+    <div className="animate-fade absolute inset-x-0 bottom-0 z-40 max-h-full overflow-y-auto border-t border-line bg-panel p-6 sm:inset-y-0 sm:right-auto sm:flex sm:w-[400px] sm:flex-col sm:border-t-0 sm:border-r sm:p-10">
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <span className="size-2 rounded-full bg-pulse" />
+        Pulse
+      </p>
 
-        <h1 className="mt-6 text-[2rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-4xl">
-          Somewhere out there, a stranger is awake.
+      <div className="mt-8 sm:my-auto">
+        <h1 className="text-3xl leading-tight font-semibold tracking-tight">
+          Talk to a stranger, anywhere.
         </h1>
         <p className="mt-3 text-[15px] leading-relaxed text-zinc-400">
-          Everyone online is a dot on the globe. Tap one to talk, by text or
-          video.
+          Everyone online is a dot on the map. Pick one and start a
+          conversation.
         </p>
 
-        <ul className="mt-7 space-y-4">
-          {PROMISES.map((p) => (
-            <li key={p.title} className="flex gap-3.5">
-              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-pulse-soft">
-                {p.icon}
-              </span>
-              <span className="text-sm leading-snug">
-                <span className="font-medium text-zinc-100">{p.title}</span>
-                <span className="block text-zinc-400">{p.text}</span>
-              </span>
-            </li>
+        <dl className="mt-8 divide-y divide-line border-y border-line text-sm">
+          {FACTS.map(([term, detail]) => (
+            <div key={term} className="flex gap-4 py-3">
+              <dt className="w-20 shrink-0 text-zinc-500">{term}</dt>
+              <dd className="text-zinc-300">{detail}</dd>
+            </div>
           ))}
-        </ul>
+        </dl>
 
-        <fieldset className="mt-7">
-          <legend className="text-xs font-medium tracking-wide text-zinc-500 uppercase">
-            What are you up for? <span className="normal-case">(optional)</span>
+        <fieldset className="mt-8">
+          <legend className="text-sm text-zinc-500">
+            What do you feel like? Optional.
           </legend>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {(Object.keys(VIBES) as Vibe[]).map((key) => (
               <button
                 key={key}
                 type="button"
                 aria-pressed={vibe === key}
                 onClick={() => setVibe(vibe === key ? null : key)}
-                className={`rounded-full px-3 py-1.5 text-sm transition ${
+                className={`rounded-md border px-2.5 py-1.5 text-sm transition ${
                   vibe === key
-                    ? "bg-white text-ink"
-                    : "bg-white/[0.07] text-zinc-300 hover:bg-white/[0.12]"
+                    ? "border-white bg-white text-black"
+                    : "border-line text-zinc-300 hover:border-zinc-500"
                 }`}
               >
-                {VIBES[key].emoji} {VIBES[key].label}
+                {VIBES[key]}
               </button>
             ))}
           </div>
@@ -122,25 +100,26 @@ export default function EntryGate({
         <button
           onClick={enter}
           disabled={locating}
-          className="mt-7 flex h-13 w-full items-center justify-center gap-2 rounded-full bg-pulse text-[15px] font-semibold text-white shadow-[0_10px_40px_-10px] shadow-pulse transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70"
+          className="mt-8 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white text-sm font-medium text-black transition hover:bg-zinc-200 disabled:opacity-60"
         >
           {locating && (
-            <span className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            <span className="size-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black" />
           )}
-          {locating ? "Finding you…" : "Drop me on the map"}
+          {locating ? "Finding you…" : "Enter the map"}
         </button>
 
         <p
           role="alert"
-          className={`mt-4 text-center text-sm text-pulse-soft ${status === "error" ? "" : "hidden"}`}
+          className={`mt-3 text-sm text-pulse-soft ${status === "error" ? "" : "hidden"}`}
         >
           {error}
         </p>
-        <p className="mt-4 text-center text-xs text-zinc-500">
-          Your browser will ask for your location. It is only used to place
-          the dot.
-        </p>
       </div>
+
+      <p className="mt-6 text-xs text-zinc-600">
+        Your browser will ask for your location. It is only used to place the
+        dot.
+      </p>
     </div>
   );
 }

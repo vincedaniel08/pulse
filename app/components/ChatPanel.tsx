@@ -56,23 +56,17 @@ export default function ChatPanel({
   return (
     <section
       aria-label="Chat with stranger"
-      className="glass animate-rise absolute inset-0 z-20 flex flex-col sm:inset-y-4 sm:right-4 sm:left-auto sm:w-[380px] sm:rounded-[28px]"
+      className="surface animate-rise absolute inset-0 z-20 flex flex-col sm:inset-y-4 sm:right-4 sm:left-auto sm:w-[380px] sm:rounded-xl"
     >
-      <header className="flex items-center gap-3 border-b border-line px-4 py-3.5">
-        <span
-          className="size-9 shrink-0 rounded-full"
-          style={{
-            background: `radial-gradient(circle at 35% 30%, white -40%, ${accent} 55%)`,
-            boxShadow: `0 0 18px -2px ${accent}`,
-          }}
-        />
+      <header className="flex items-center gap-3 border-b border-line px-4 py-3">
+        <span className="size-3 shrink-0 rounded-full" style={{ background: accent }} />
         <div className="min-w-0 flex-1">
-          <p className="leading-tight font-semibold">Stranger</p>
+          <p className="text-sm leading-tight font-medium">Stranger</p>
           <p className="flex items-center gap-1.5 text-xs text-zinc-400">
             <span
               className={`size-1.5 rounded-full ${connected ? "bg-emerald-400" : "animate-pulse bg-amber-400"}`}
             />
-            {connected ? "Connected directly to you" : "Opening a direct line…"}
+            {connected ? "Connected, peer to peer" : "Connecting…"}
           </p>
         </div>
         <button
@@ -80,7 +74,7 @@ export default function ChatPanel({
           disabled={!connected || videoBusy}
           aria-label="Start video call"
           title="Start video call"
-          className="flex size-10 items-center justify-center rounded-full bg-white/[0.07] text-zinc-100 transition hover:bg-white/[0.14] disabled:opacity-35"
+          className="flex size-9 items-center justify-center rounded-md text-zinc-300 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-35"
         >
           <VideoIcon />
         </button>
@@ -88,7 +82,7 @@ export default function ChatPanel({
           onClick={onBlock}
           aria-label="Block and leave"
           title="Block and leave"
-          className="flex size-10 items-center justify-center rounded-full bg-white/[0.07] text-zinc-100 transition hover:bg-white/[0.14]"
+          className="flex size-9 items-center justify-center rounded-md text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
         >
           <BlockIcon />
         </button>
@@ -96,7 +90,7 @@ export default function ChatPanel({
           onClick={onEnd}
           aria-label="End conversation"
           title="End conversation"
-          className="flex size-10 items-center justify-center rounded-full bg-pulse/15 text-pulse-soft transition hover:bg-pulse hover:text-white"
+          className="flex size-9 items-center justify-center rounded-md text-zinc-300 transition hover:bg-pulse hover:text-white"
         >
           <CloseIcon />
         </button>
@@ -104,14 +98,12 @@ export default function ChatPanel({
 
       <div className="flex-1 space-y-1.5 overflow-y-auto px-4 py-4" aria-live="polite">
         {messages.length === 0 && (
-          <div className="mx-auto mt-10 flex max-w-[240px] flex-col items-center gap-3 text-center text-sm text-zinc-400">
-            <span className="flex size-10 items-center justify-center rounded-full bg-white/[0.06] text-zinc-300">
-              <LockIcon />
-            </span>
+          <div className="mx-auto mt-10 flex max-w-[240px] flex-col items-center gap-3 text-center text-sm text-zinc-500">
+            <LockIcon />
             <p>
               {connected
-                ? "Say hello. Messages travel straight between your two browsers and are never stored."
-                : "Hang tight, connecting your browsers to each other."}
+                ? "Say hello. Messages go straight between your two browsers and are never stored."
+                : "Connecting your two browsers…"}
             </p>
           </div>
         )}
@@ -125,10 +117,10 @@ export default function ChatPanel({
               className={`animate-rise flex ${m.mine ? "justify-end" : "justify-start"} ${follows ? "" : "pt-2"}`}
             >
               <p
-                className={`max-w-[82%] rounded-[20px] px-3.5 py-2 text-[15px] leading-snug break-words whitespace-pre-wrap ${
+                className={`max-w-[82%] rounded-2xl px-3 py-2 text-sm leading-snug break-words whitespace-pre-wrap ${
                   m.mine
-                    ? `bg-pulse text-white ${follows ? "rounded-tr-md" : ""}`
-                    : `bg-white/[0.09] text-zinc-100 ${follows ? "rounded-tl-md" : ""}`
+                    ? `bg-zinc-100 text-zinc-900 ${follows ? "rounded-tr-md" : ""}`
+                    : `bg-white/[0.08] text-zinc-100 ${follows ? "rounded-tl-md" : ""}`
                 }`}
               >
                 {m.text}
@@ -139,7 +131,7 @@ export default function ChatPanel({
 
         {peerTyping && (
           <div className="animate-fade flex justify-start pt-2" aria-label="Stranger is typing">
-            <span className="flex gap-1 rounded-[20px] bg-white/[0.09] px-3.5 py-3">
+            <span className="flex gap-1 rounded-2xl bg-white/[0.08] px-3 py-3">
               {[0, 150, 300].map((delay) => (
                 <span
                   key={delay}
@@ -169,13 +161,13 @@ export default function ChatPanel({
           disabled={!connected}
           maxLength={MAX_CHAT_LENGTH}
           autoComplete="off"
-          className="h-11 min-w-0 flex-1 rounded-full bg-white/[0.07] px-4 text-[15px] outline-none placeholder:text-zinc-500 focus:bg-white/[0.11] disabled:opacity-50"
+          className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-transparent px-3 text-sm outline-none placeholder:text-zinc-500 focus:border-zinc-500 disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={!connected || !draft.trim()}
           aria-label="Send"
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-pulse text-white transition hover:brightness-110 active:scale-95 disabled:opacity-35"
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white text-black transition hover:bg-zinc-200 disabled:opacity-30"
         >
           <SendIcon />
         </button>

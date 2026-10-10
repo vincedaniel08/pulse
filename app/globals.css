@@ -4,12 +4,13 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* Night-side-of-the-planet palette: near-black blues, one warm accent. */
-  --color-ink: #05070d;
-  --color-panel: #0c101b;
-  --color-line: rgb(255 255 255 / 0.09);
-  --color-pulse: #ff5c7a;
-  --color-pulse-soft: #ff93a7;
+  /* Neutral dark surfaces. The accent is reserved for the brand dot, the
+     connection arc and destructive actions; primary buttons are white. */
+  --color-ink: #09090b;
+  --color-panel: #111113;
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-pulse: #ff5a36;
+  --color-pulse-soft: #ff8f73;
 
   --animate-rise: rise 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-fade: fade 0.25s ease-out both;
@@ -43,18 +44,15 @@ body {
   overscroll-behavior: none;
 }
 
-/* Frosted surface used by every floating panel. */
-@utility glass {
-  background: rgb(12 16 27 / 0.78);
+/* The one surface every floating panel sits on. */
+@utility surface {
+  background: var(--color-panel);
   border: 1px solid var(--color-line);
-  box-shadow:
-    0 24px 60px -20px rgb(0 0 0 / 0.7),
-    inset 0 1px 0 rgb(255 255 255 / 0.05);
-  backdrop-filter: blur(20px) saturate(1.5);
+  box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.8);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-pulse-soft);
+  outline: 2px solid rgb(255 255 255 / 0.7);
   outline-offset: 2px;
 }
 
@@ -88,8 +86,8 @@ body {
   height: 12px;
   background: var(--c);
   box-shadow:
-    0 0 0 2px rgb(5 7 13 / 0.9),
-    0 0 14px 2px var(--c);
+    0 0 0 2px rgb(9 9 11 / 0.9),
+    0 0 10px 1px var(--c);
   transition: transform 0.15s ease;
 }
 
@@ -122,12 +120,12 @@ body {
 .dot-me span {
   position: absolute;
   left: 50%;
-  top: -6px;
+  top: -9px;
   transform: translateX(-50%);
-  padding: 1px 7px;
-  border-radius: 9999px;
-  background: rgb(255 255 255 / 0.95);
-  color: #05070d;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fff;
+  color: #09090b;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -165,17 +163,6 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* Mood badge riding on a dot. */
-.dot-vibe {
-  position: absolute;
-  top: 0;
-  right: 0;
-  font-size: 13px;
-  line-height: 1;
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.8));
 }
 
 /* A dot that just waved at us: three quick, wide rings. */

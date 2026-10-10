@@ -70,13 +70,16 @@ export async function POST(request: NextRequest) {
 
   // Busy transitions:
   // - accept: the connection is now active → mark BOTH peers busy.
-  // - decline/end: free both peers.
+  // - end: the connection is over → free both peers.
+  // A decline happens before anyone is marked busy, so it must not touch the
+  // flag: a user who is mid-chat auto-declines third parties and would
+  // otherwise show up as free again.
   if (signalType === "accept") {
     await prisma.presence.updateMany({
       where: { id: { in: [fromId, toId] } },
       data: { busy: true },
     });
-  } else if (signalType === "decline") {
+  } else if (signalType === "end") {
     await prisma.presence.updateMany({
       where: { id: { in: [fromId, toId] } },
       data: { busy: false },

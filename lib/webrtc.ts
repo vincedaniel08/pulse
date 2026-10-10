@@ -47,6 +47,8 @@ export class PeerSession {
         if (this.pc.localDescription) {
           this.cb.onSignal("offer", JSON.stringify(this.pc.localDescription));
         }
+      } catch (err) {
+        console.warn("negotiation failed", err);
       } finally {
         this.makingOffer = false;
       }
@@ -85,7 +87,17 @@ export class PeerSession {
     };
   }
 
-  async handleSignal(type: DescType, payload: string) {
+  // Signals arrive in batches from the poll. Handle them strictly one after
+  // another: an answer must not race the offer that is still being applied.
+  private queue: Promise<void> = Promise.resolve();
+
+  handleSignal(type: DescType, payload: string) {
+    this.queue = this.queue
+      .then(() => this.applySignal(type, payload))
+      .catch((err) => console.warn("signal dropped", type, err));
+  }
+
+  private async applySignal(type: DescType, payload: string) {
     if (this.closed) return;
     const data = JSON.parse(payload);
 

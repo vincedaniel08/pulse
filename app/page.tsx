@@ -244,7 +244,7 @@ export default function Home() {
         const peerId =
           c.kind === "connecting" || c.kind === "connected" ? c.peerId : null;
         if (peerRef.current && peerId === sig.fromId) {
-          void peerRef.current.handleSignal(
+          peerRef.current.handleSignal(
             sig.type as DescType,
             sig.payload ?? "",
           );
@@ -288,6 +288,15 @@ export default function Home() {
         }
         setPeers(data.peers);
         for (const s of data.signals) processSignalRef.current(s);
+
+        // A peer that closed the tab or lost network never sends "end".
+        // Once their dot is gone, stop waiting for them.
+        const c = connRef.current;
+        if (c.kind !== "idle" && !data.peers.some((p) => p.id === c.peerId)) {
+          void sendSignal(sessionId, c.peerId, "end"); // clears our busy flag
+          if (c.kind === "incoming") setConn({ kind: "idle" });
+          else teardown("Stranger disconnected.");
+        }
       } catch {
         // Network blip: keep polling.
       } finally {
